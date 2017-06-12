@@ -1,0 +1,52 @@
+<beans
+        xmlns="http://www.springframework.org/schema/beans"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns:int="http://www.springframework.org/schema/integration"
+        xmlns:int-file="http://www.springframework.org/schema/integration/file"
+        xsi:schemaLocation="
+        http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/integration
+        http://www.springframework.org/schema/integration/spring-integration.xsd
+        http://www.springframework.org/schema/integration/file
+        http://www.springframework.org/schema/integration/file/spring-integration-file.xsd">
+
+    <int-file:inbound-channel-adapter id="producer-file-adapter"
+                                      directory="file:c://si/source"
+                                      channel="inboundChannel">
+        <int:poller fixed-rate="2000"/>
+    </int-file:inbound-channel-adapter>
+
+    <int:channel id="inboundChannel" />
+
+    <int:channel id="fileIdChannel" />
+    
+    <int:channel id="processingChannel" />
+
+    <int:channel id="stringChannel" />
+
+    <int:channel id="outboundChannel" />
+
+
+    <int-file:outbound-channel-adapter channel="processingChannel"
+                                       id="consumer-file-adapter"
+                                       directory="file:c://si/processing" />
+
+    <int-file:outbound-channel-adapter channel="outboundChannel"
+                                       id="consumer-file-adapter"
+                                       directory="file:c://si/completed" />
+
+    <bean id="file-selector" class="com.si.filter.FileSelector" />
+
+    <!--<bean id="file-id-selector" class="com.si.filter.FileIdSelector" />-->
+
+    <int:filter input-channel="inboundChannel" output-channel="processingChannel" ref="file-selector"/>
+    <!--<int:filter input-channel="inboundChannel" output-channel="fileIdChannel" ref="file-id-selector"/>-->
+
+    <int-file:file-to-string-transformer id="file-to-string-transformer" input-channel="processingChannel" output-channel="stringChannel" charset="UTF-8" />
+
+    <int:service-activator ref="filename-appender-by-id" input-channel="stringChannel" output-channel="outboundChannel"/>
+
+    <bean id="filename-appender-by-id" class="com.si.service_activator.FilenameAppenderByIdServiceActivator" />
+
+</beans>
