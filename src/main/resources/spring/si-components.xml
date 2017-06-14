@@ -3,13 +3,18 @@
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xmlns:int="http://www.springframework.org/schema/integration"
         xmlns:int-file="http://www.springframework.org/schema/integration/file"
+        xmlns:context="http://www.springframework.org/schema/context"
         xsi:schemaLocation="
         http://www.springframework.org/schema/beans
         http://www.springframework.org/schema/beans/spring-beans.xsd
         http://www.springframework.org/schema/integration
         http://www.springframework.org/schema/integration/spring-integration.xsd
         http://www.springframework.org/schema/integration/file
-        http://www.springframework.org/schema/integration/file/spring-integration-file.xsd">
+        http://www.springframework.org/schema/integration/file/spring-integration-file.xsd
+        http://www.springframework.org/schema/context
+        http://www.springframework.org/schema/context/spring-context.xsd">
+
+    <context:component-scan base-package="com.si.logger" />
 
     <int-file:inbound-channel-adapter id="producer-file-adapter"
                                       directory="file:c://si/source"
@@ -18,35 +23,47 @@
     </int-file:inbound-channel-adapter>
 
     <int:channel id="inboundChannel" />
-
-    <int:channel id="fileIdChannel" />
-    
+    <int:channel id="preProcessingChannel" />
     <int:channel id="processingChannel" />
-
     <int:channel id="stringChannel" />
-
     <int:channel id="outboundChannel" />
 
+    <int-file:outbound-channel-adapter channel="preProcessingChannel"
+                                       id="consumer-pre-processing-file-adapter"
+                                       directory="file:c://si/processing"
+                                       delete-source-files="true" />
 
-    <int-file:outbound-channel-adapter channel="processingChannel"
-                                       id="consumer-file-adapter"
-                                       directory="file:c://si/processing" />
+    <int-file:inbound-channel-adapter directory="c:/si/processing"
+                                      channel="processingChannel"
+                                      id="consumer-processing-file-adapter">
+        <int:poller fixed-rate="2000" />
+    </int-file:inbound-channel-adapter>
+
 
     <int-file:outbound-channel-adapter channel="outboundChannel"
-                                       id="consumer-file-adapter"
-                                       directory="file:c://si/completed" />
+                                       id="consumer-completed-file-adapter"
+                                       directory="file:c://si/completed"
+                                       delete-source-files="true" />
+
+    <int-file:outbound-channel-adapter id="consumer-error-file-adapter"
+                                       directory="file:c://si/error"
+                                       delete-source-files="true" />
 
     <bean id="file-selector" class="com.si.filter.FileSelector" />
 
-    <!--<bean id="file-id-selector" class="com.si.filter.FileIdSelector" />-->
-
     <int:filter input-channel="inboundChannel" output-channel="processingChannel" ref="file-selector"/>
-    <!--<int:filter input-channel="inboundChannel" output-channel="fileIdChannel" ref="file-id-selector"/>-->
 
-    <int-file:file-to-string-transformer id="file-to-string-transformer" input-channel="processingChannel" output-channel="stringChannel" charset="UTF-8" />
+    <int-file:file-to-string-transformer id="file-2-string-transformer" input-channel="processingChannel" output-channel="stringChannel" charset="UTF-8"/>
 
-    <int:service-activator ref="filename-appender-by-id" input-channel="stringChannel" output-channel="outboundChannel"/>
+    <int:service-activator ref="filename-appender-by-id" method="appendFilenames" input-channel="stringChannel" output-channel="outboundChannel"/>
 
     <bean id="filename-appender-by-id" class="com.si.service_activator.FilenameAppenderByIdServiceActivator" />
 
+    <int:service-activator input-channel="errorChannel" ref="errorLogger" method="logError"/>
+
+    <bean id="errorLogger" class="com.si.logger.ErrorLogger" />
+
+    <bean id="errorHandler" class="com.si.handler.ErrorHandler">
+        <property name="defaultErrorChannel" ref="consumer-error-file-adapter" />
+    </bean>
 </beans>
